@@ -19,6 +19,7 @@ use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use grandpa::fg_primitives;
+use assets;
 use sp_version::RuntimeVersion;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
@@ -57,6 +58,8 @@ pub type AccountIndex = u32;
 
 /// Balance of an account.
 pub type Balance = u128;
+
+pub type AssetId = u128;
 
 /// Index of a transaction in the chain.
 pub type Index = u32;
@@ -240,6 +243,13 @@ impl balances::Trait for Runtime {
 	type WeightInfo = ();
 }
 
+impl assets::Trait for Runtime {
+	type Event = Event;
+	type Balance = Balance;
+	type AssetId = AssetId;
+
+}
+
 parameter_types! {
 	pub const TransactionByteFee: Balance = 1;
 }
@@ -279,6 +289,7 @@ construct_runtime!(
 		Sudo: sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the template pallet in the runtime.
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
+		Assets: assets::{Module, Call, Storage, Event<T>},
 	}
 );
 

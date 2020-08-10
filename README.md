@@ -6,7 +6,7 @@
 
 ### substrate Setup 
 
-[ ] Add Asset pallet
+[x] Add Asset pallet
 
 ### pallet functions
 
@@ -40,3 +40,13 @@ So in a scenerio where the contract balance is t1 = 10 and t2 = 20  p of t1 = p2
 Will be working off this implementaiton https://github.com/PhABC/uniswap-solidity/blob/master/contracts/uniswap/UniswapExchange.sol
 
 Important, seems like prices are calculated before transfer, would this be bad for impermenent loss and slippage, check if that is right with vyper contracts
+
+front end data types 
+
+```
+{
+  "Address": "AccountId",
+  "LookupSource": "AccountId",
+  "AssetId": "u128"
+}
+```
