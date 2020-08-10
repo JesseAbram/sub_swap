@@ -151,10 +151,10 @@ package = 'frame-system'
 tag = 'v2.0.0-rc5'
 version = '2.0.0-rc5'
 
-[dependencies.template]
+[dependencies.uniswap]
 default-features = false
-package = 'pallet-template'
-path = '../pallets/template'
+package = 'pallet-uniswap'
+path = '../pallets/uniswap'
 version = '2.0.0-rc5'
 
 [dependencies.timestamp]
@@ -204,5 +204,5 @@ std = [
     'system/std',
     'timestamp/std',
     'transaction-payment/std',
-    'template/std',
+    'uniswap/std',
 ]
