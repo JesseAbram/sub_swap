@@ -243,7 +243,7 @@ impl balances::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl assets::Trait for Runtime {
+impl uniswap::Trait for Runtime {
 	type Event = Event;
 	type Balance = Balance;
 	type AssetId = AssetId;
@@ -268,9 +268,9 @@ impl sudo::Trait for Runtime {
 }
 
 /// Configure the pallet template in pallets/template.
-impl uniswap::Trait for Runtime {
-	type Event = Event;
-}
+// impl uniswap::Trait for Runtime {
+// 	type Event = Event;
+// }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
@@ -289,7 +289,7 @@ construct_runtime!(
 		Sudo: sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the template pallet in the runtime.
 		Uniswap: uniswap::{Module, Call, Storage, Event<T>},
-		Assets: assets::{Module, Call, Storage, Event<T>},
+		// Assets: assets::{Module, Call, Storage, Event<T>},
 	}
 );
 

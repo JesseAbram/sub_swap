@@ -1,107 +1,236 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// https://substrate.dev/docs/en/knowledgebase/runtime/frame
-
-use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch, traits::Get};
+use frame_support::{Parameter, decl_module, decl_event, decl_storage, decl_error, ensure, dispatch};
+use frame_support::{
+		weights::{Weight, GetDispatchInfo, Pays},
+		traits::UnfilteredDispatchable,
+		dispatch::DispatchResultWithPostInfo,
+	};
+use sp_runtime::traits::{Member, AtLeast32Bit, AtLeast32BitUnsigned, Zero, StaticLookup};
 use frame_system::ensure_signed;
+use sp_runtime::traits::One;
 
-#[cfg(test)]
-mod mock;
-
-#[cfg(test)]
-mod tests;
-
-/// Configure the pallet by specifying the parameters and types on which it depends.
+/// The module configuration trait.
 pub trait Trait: frame_system::Trait {
-	/// Because this pallet emits events, it depends on the runtime's definition of an event.
+	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+
+	/// The units in which we record balances.
+	type Balance: Member + Parameter + AtLeast32BitUnsigned + Default + Copy;
+
+	/// The arithmetic type of asset identifier.
+	type AssetId: Parameter + AtLeast32Bit + Default + Copy;
 }
 
-// The pallet's runtime storage items.
-// https://substrate.dev/docs/en/knowledgebase/runtime/storage
-decl_storage! {
-	// A unique name is used to ensure that the pallet's storage items are isolated.
-	// This name may be updated, but each pallet in the runtime must use a unique name.
-	// ---------------------------------vvvvvvvvvvvvvv
-	trait Store for Module<T: Trait> as Uniswap {
-		// Learn more about declaring storage items:
-		// https://substrate.dev/docs/en/knowledgebase/runtime/storage#declaring-storage-items
-		NativeToken get(fn native_token): u128;
-		pub TokenBalances get(fn token_balances): map hasher(blake2_128_concat) u128 => u128;
-		TokenPairs get(fn token_pairs): u128;	}
-}
-
-// Pallets use events to inform users when important changes are made.
-// https://substrate.dev/docs/en/knowledgebase/runtime/events
-decl_event!(
-	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId {
-		/// Event documentation should end with an array that provides descriptive names for event
-		/// parameters. [something, who]
-		SomethingStored(u128, AccountId),
-	}
-);
-
-// Errors inform users that something went wrong.
-decl_error! {
-	pub enum Error for Module<T: Trait> {
-		/// Error names should be descriptive.
-		NoneValue,
-		/// Errors should have helpful documentation associated with them.
-		StorageOverflow,
-	}
-}
-
-// Dispatchable functions allows users to interact with the pallet and invoke state changes.
-// These functions materialize as "extrinsics", which are often compared to transactions.
-// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
-		// Errors must be initialized if they are used by the pallet.
 		type Error = Error<T>;
 
-		// Events must be initialized if they are used by the pallet.
 		fn deposit_event() = default;
+		/// Issue a new class of fungible assets. There are, and will only ever be, `total`
+		/// such assets and they'll all belong to the `origin` initially. It will have an
+		/// identifier `AssetId` instance: this will be specified in the `Issued` event.
+		///
+		/// # <weight>
+		/// - `O(1)`
+		/// - 1 storage mutation (codec `O(1)`).
+		/// - 2 storage writes (condec `O(1)`).
+		/// - 1 event.
+		/// # </weight>
+		#[weight = 0]
+		fn issue(origin, #[compact] total: T::Balance) {
+			let origin = ensure_signed(origin)?;
+
+			let id = Self::next_asset_id();
+			<NextAssetId<T>>::mutate(|id| *id += One::one());
+
+			<Balances<T>>::insert((id, &origin), total);
+			<TotalSupply<T>>::insert(id, total);
+
+			Self::deposit_event(RawEvent::Issued(id, origin, total));
+		}
+
+		/// Move some assets from one holder to another.
+		///
+		/// # <weight>
+		/// - `O(1)`
+		/// - 1 static lookup
+		/// - 2 storage mutations (codec `O(1)`).
+		/// - 1 event.
+		/// # </weight>
+		#[weight = 0]
+		fn transfer(origin,
+			#[compact] id: T::AssetId,
+			target: <T::Lookup as StaticLookup>::Source,
+			#[compact] amount: T::Balance
+		) {
+			let origin = ensure_signed(origin)?;
+			let origin_account = (id, origin.clone());
+			let origin_balance = <Balances<T>>::get(&origin_account);
+			let target = T::Lookup::lookup(target)?;
+			ensure!(!amount.is_zero(), Error::<T>::AmountZero);
+			ensure!(origin_balance >= amount, Error::<T>::BalanceLow);
+
+			Self::deposit_event(RawEvent::Transferred(id, origin, target.clone(), amount));
+			<Balances<T>>::insert(origin_account, origin_balance - amount);
+			<Balances<T>>::mutate((id, target), |balance| *balance += amount);
+		}
+
+		/// Destroy any assets of `id` owned by `origin`.
+		///
+		/// # <weight>
+		/// - `O(1)`
+		/// - 1 storage mutation (codec `O(1)`).
+		/// - 1 storage deletion (codec `O(1)`).
+		/// - 1 event.
+		/// # </weight>
+		#[weight = 0]
+		fn destroy(origin, #[compact] id: T::AssetId) {
+			let origin = ensure_signed(origin)?;
+			let balance = <Balances<T>>::take((id, &origin));
+			ensure!(!balance.is_zero(), Error::<T>::BalanceZero);
+
+			<TotalSupply<T>>::mutate(id, |total_supply| *total_supply -= balance);
+			Self::deposit_event(RawEvent::Destroyed(id, origin, balance));
+		}
+
+	
 		
+	#[weight = 0]
+	fn add_liquidity(
+			origin,
+			#[compact] id: T::AssetId,
+			#[compact] asset_amount: T::Balance,
+			native_amount: T::Balance
+		) -> dispatch::DispatchResult {
+			// handles deposit asset token
+			let origin = ensure_signed(origin)?;
+			let origin_account = (id, origin.clone());
+			let origin_balance = <Balances<T>>::get(&origin_account);
+			ensure!(origin_balance >= asset_amount, Error::<T>::BalanceLow);
+			<Balances<T>>::insert(origin_account, origin_balance - asset_amount);
 
-		/// An example dispatchable that takes a singles value as a parameter, writes the value to
-		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
-		#[weight = 10_000 + T::DbWeight::get().writes(1)]
-		pub fn add_pair(origin, token_id: u128) -> dispatch::DispatchResult {
-			// Check that the extrinsic was signed and get the signer.
-			// This function will return an error if the extrinsic is not signed.
-			// https://substrate.dev/docs/en/knowledgebase/runtime/origin
-			let who = ensure_signed(origin)?;
+			//TODO make one event for add liqudity
+			Self::deposit_event(RawEvent::Deposited(id, origin, asset_amount));
 
-			// allow for initial deposit of token?
-			TokenBalances::insert(token_id, 0);
+			// update asset liquidity pool 
+			<TokenBalances<T>>::insert(id, asset_amount);
 
-			// fix event signature
-			Self::deposit_event(RawEvent::SomethingStored(token_id, who));
-			// Return a successful DispatchResult
+			
+			// deposit nativeToken
+
+
+			// update token pair
+			// update nativetoken to token balance
+
+			// return a token based on the % of the pool
+			// map the token generated
 			Ok(())
 		}
-		
 
-		/// An example dispatchable that may throw a custom error.
-		#[weight = 10_000 + T::DbWeight::get().reads_writes(1,1)]
-		pub fn cause_error(origin) -> dispatch::DispatchResult {
-			let _who = ensure_signed(origin)?;
+	#[weight = 0]
+	fn remove_liquidity(
+				origin,
+				#[compact] id: T::AssetId,
+				#[compact] asset_amount: T::Balance,
+			) -> dispatch::DispatchResult {
+		//Take liquidity token return corresponding pool values
+		Ok(())
+	}
+	#[weight = 0]
+	fn swap_token_to_asset(
+				origin,
+				#[compact] id: T::AssetId,
+				#[compact] asset_amount: T::Balance,
+			) -> dispatch::DispatchResult {
+		//Takes in Native token returns asset
+		Ok(())
+	}
 
-		// 	// Read a value from storage.
-		// 	match Something::get() {
-		// 		// Return an error if the value has not been set.
-		// 		None => Err(Error::<T>::NoneValue)?,
-		// 		Some(old) => {
-		// 			// Increment the value read from storage; will error in the event of overflow.
-		// 			let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-		// 			// Update the value in storage with the incremented result.
-		// 			Something::put(new);
-		// 			Ok(())
-		// 		},
-		// 	}
-			Ok(())
-		}
+	#[weight = 0]
+	fn swap_asset_to_token(
+				origin,
+				#[compact] id: T::AssetId,
+				#[compact] asset_amount: T::Balance,
+			) -> dispatch::DispatchResult {
+		//Takes in asset returns native token
+		Ok(())
+	}
+
+	#[weight = 0]
+	fn swap_token_to_token(
+				origin,
+				#[compact] id1: T::AssetId,
+				#[compact] id2: T::AssetId,
+			) -> dispatch::DispatchResult {
+		//Take in token turns into native asset turns again into new asset 
+		Ok(())
+	}
+
+	}
+}
+
+decl_event! {
+	pub enum Event<T> where
+		<T as frame_system::Trait>::AccountId,
+		<T as Trait>::Balance,
+		<T as Trait>::AssetId,
+	{
+		/// Some assets were issued. [asset_id, owner, total_supply]
+		Issued(AssetId, AccountId, Balance),
+		/// Some assets were transferred. [asset_id, from, to, amount]
+		Transferred(AssetId, AccountId, AccountId, Balance),
+		/// Some assets were destroyed. [asset_id, owner, balance]
+		Destroyed(AssetId, AccountId, Balance),
+		Deposited(AssetId, AccountId, Balance),
+	}
+}
+
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// Transfer amount should be non-zero
+		AmountZero,
+		/// Account balance must be greater than or equal to the transfer amount
+		BalanceLow,
+		/// Balance should be non-zero
+		BalanceZero,
+	}
+}
+
+decl_storage! {
+	trait Store for Module<T: Trait> as Uniswap {
+		/// The number of units of assets held by any given account.
+		Balances: map hasher(blake2_128_concat) (T::AssetId, T::AccountId) => T::Balance;
+		/// The next asset identifier up for grabs.
+		NextAssetId get(fn next_asset_id): T::AssetId;
+		/// The total unit supply of an asset.
+		///
+		/// TWOX-NOTE: `AssetId` is trusted, so this is safe.
+		TotalSupply: map hasher(twox_64_concat) T::AssetId => T::Balance;
+
+		//TODO fix o they are generic types
+		pub TokenBalances: map hasher(blake2_128_concat) T::AssetId => T::Balance;
+		pub NativeTokenBalances get(fn native_token_balances): map hasher(blake2_128_concat) u128 => u128;
+		pub LiquidityTokenTracker get(fn liquidity_token_tracker): map hasher(blake2_128_concat) u128 => u128;
+
+
+	}
+}
+
+// The main implementation block for the module.
+impl<T: Trait> Module<T> {
+	// Public immutables
+
+	/// Get the asset `id` balance of `who`.
+	pub fn balance(id: T::AssetId, who: T::AccountId) -> T::Balance {
+		<Balances<T>>::get((id, who))
+	}
+
+	/// Get the total supply of an asset `id`.
+	pub fn total_supply(id: T::AssetId) -> T::Balance {
+		<TotalSupply<T>>::get(id)
+	}
+	pub fn token_balance(id: T::AssetId) -> T::Balance {
+		<TokenBalances<T>>::get(id)
 	}
 }
