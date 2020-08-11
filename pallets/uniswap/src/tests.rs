@@ -2,13 +2,15 @@ use crate::{Error, mock::*};
 use frame_support::{assert_ok, assert_noop};
 
 #[test]
-fn it_adds_a_pair() {
+fn it_adds_liquidity() {
 	new_test_ext().execute_with(|| {
 		// Dispatch a signed extrinsic.
-		assert_ok!(Uniswap::add_pair(Origin::signed(1), 42));
+		assert_ok!(Uniswap::issue(Origin::signed(1), 100));
+		assert_eq!(Uniswap::balance(0, 1), 100);
+
+		assert_ok!(Uniswap::add_liquidity(Origin::signed(1), 0, 10, 0));
 		// Read pallet storage and assert an expected result.
-		assert_eq!(Uniswap::token_balances(42), 0);
-		assert_eq!(Uniswap::token_balances(42), 0);
+		assert_eq!(Uniswap::token_balance(0), 10);
 
 	});
 }

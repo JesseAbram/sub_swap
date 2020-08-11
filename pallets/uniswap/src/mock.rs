@@ -51,6 +51,8 @@ impl system::Trait for Test {
 
 impl Trait for Test {
 	type Event = ();
+	type Balance = u128;
+	type AssetId = u128;
 }
 
 pub type Uniswap = Module<Test>;

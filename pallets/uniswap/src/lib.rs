@@ -10,6 +10,12 @@ use sp_runtime::traits::{Member, AtLeast32Bit, AtLeast32BitUnsigned, Zero, Stati
 use frame_system::ensure_signed;
 use sp_runtime::traits::One;
 
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
 /// The module configuration trait.
 pub trait Trait: frame_system::Trait {
 	/// The overarching event type.
