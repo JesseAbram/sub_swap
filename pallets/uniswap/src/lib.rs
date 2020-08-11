@@ -3,7 +3,7 @@
 use frame_support::{Parameter, decl_module, decl_event, decl_storage, decl_error, ensure, dispatch};
 use frame_support::{
 		weights::{Weight, GetDispatchInfo, Pays},
-		traits::UnfilteredDispatchable,
+		traits::{UnfilteredDispatchable, Currency, ReservableCurrency},
 		dispatch::DispatchResultWithPostInfo,
 	};
 use sp_runtime::traits::{Member, AtLeast32Bit, AtLeast32BitUnsigned, Zero, StaticLookup};
@@ -16,6 +16,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+
 /// The module configuration trait.
 pub trait Trait: frame_system::Trait {
 	/// The overarching event type.
@@ -26,6 +28,9 @@ pub trait Trait: frame_system::Trait {
 
 	/// The arithmetic type of asset identifier.
 	type AssetId: Parameter + AtLeast32Bit + Default + Copy;
+
+	type Currency: ReservableCurrency<Self::AccountId>;
+
 }
 
 decl_module! {
@@ -107,30 +112,44 @@ decl_module! {
 			origin,
 			#[compact] id: T::AssetId,
 			#[compact] asset_amount: T::Balance,
-			native_amount: T::Balance
+			native_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance
 		) -> dispatch::DispatchResult {
 			// handles deposit asset token
-			let origin = ensure_signed(origin)?;
+			let origin = ensure_signed(origin.clone())?;
 			let origin_account = (id, origin.clone());
 			let origin_balance = <Balances<T>>::get(&origin_account);
 			ensure!(origin_balance >= asset_amount, Error::<T>::BalanceLow);
 			<Balances<T>>::insert(origin_account, origin_balance - asset_amount);
 
 			//TODO make one event for add liqudity
-			Self::deposit_event(RawEvent::Deposited(id, origin, asset_amount));
+			// Self::deposit_event(RawEvent::Deposited(id, &origin, asset_amount));
 
 			// update asset liquidity pool 
 			<TokenBalances<T>>::insert(id, asset_amount);
 
 			
 			// deposit nativeToken
+			T::Currency::reserve(&origin, native_amount)?;
 
-
-			// update token pair
 			// update nativetoken to token balance
+			<NativeTokenBalances<T>>::insert(id, native_amount);
 
 			// return a token based on the % of the pool
 			// map the token generated
+			let totalToken = <TokenBalances<T>>::get(id);
+			let totalNativeToken = <NativeTokenBalances<T>>::get(id);
+			let mut tokenPayout;
+			// change if statment to see if mapping exists for token
+			if totalNativeToken == native_amount {
+				tokenPayout = native_amount;
+				// create new token map it and send it
+			} else {
+				//math
+				// get token map it and send it 
+			}
+			 
+
+			
 			Ok(())
 		}
 
@@ -216,7 +235,7 @@ decl_storage! {
 
 		//TODO fix o they are generic types
 		pub TokenBalances: map hasher(blake2_128_concat) T::AssetId => T::Balance;
-		pub NativeTokenBalances get(fn native_token_balances): map hasher(blake2_128_concat) u128 => u128;
+		pub NativeTokenBalances: map hasher(blake2_128_concat) T::AssetId => <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 		pub LiquidityTokenTracker get(fn liquidity_token_tracker): map hasher(blake2_128_concat) u128 => u128;
 
 
@@ -238,5 +257,9 @@ impl<T: Trait> Module<T> {
 	}
 	pub fn token_balance(id: T::AssetId) -> T::Balance {
 		<TokenBalances<T>>::get(id)
+	}
+
+	pub fn native_token_balance(id: T::AssetId) -> <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance {
+		<NativeTokenBalances<T>>::get(id)
 	}
 }
