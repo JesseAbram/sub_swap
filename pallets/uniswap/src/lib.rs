@@ -28,8 +28,9 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Uniswap {
 		// Learn more about declaring storage items:
 		// https://substrate.dev/docs/en/knowledgebase/runtime/storage#declaring-storage-items
-		Something get(fn something): Option<u32>;
-	}
+		NativeToken get(fn native_token): u128;
+		pub TokenBalances get(fn token_balances): map hasher(blake2_128_concat) u128 => u128;
+		TokenPairs get(fn token_pairs): u128;	}
 }
 
 // Pallets use events to inform users when important changes are made.
@@ -38,7 +39,7 @@ decl_event!(
 	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId {
 		/// Event documentation should end with an array that provides descriptive names for event
 		/// parameters. [something, who]
-		SomethingStored(u32, AccountId),
+		SomethingStored(u128, AccountId),
 	}
 );
 
@@ -62,42 +63,45 @@ decl_module! {
 
 		// Events must be initialized if they are used by the pallet.
 		fn deposit_event() = default;
+		
 
 		/// An example dispatchable that takes a singles value as a parameter, writes the value to
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		#[weight = 10_000 + T::DbWeight::get().writes(1)]
-		pub fn do_something(origin, something: u32) -> dispatch::DispatchResult {
+		pub fn add_pair(origin, token_id: u128) -> dispatch::DispatchResult {
 			// Check that the extrinsic was signed and get the signer.
 			// This function will return an error if the extrinsic is not signed.
 			// https://substrate.dev/docs/en/knowledgebase/runtime/origin
 			let who = ensure_signed(origin)?;
 
-			// Update storage.
-			Something::put(something);
+			// allow for initial deposit of token?
+			TokenBalances::insert(token_id, 0);
 
-			// Emit an event.
-			Self::deposit_event(RawEvent::SomethingStored(something, who));
+			// fix event signature
+			Self::deposit_event(RawEvent::SomethingStored(token_id, who));
 			// Return a successful DispatchResult
 			Ok(())
 		}
+		
 
 		/// An example dispatchable that may throw a custom error.
 		#[weight = 10_000 + T::DbWeight::get().reads_writes(1,1)]
 		pub fn cause_error(origin) -> dispatch::DispatchResult {
 			let _who = ensure_signed(origin)?;
 
-			// Read a value from storage.
-			match Something::get() {
-				// Return an error if the value has not been set.
-				None => Err(Error::<T>::NoneValue)?,
-				Some(old) => {
-					// Increment the value read from storage; will error in the event of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					Something::put(new);
-					Ok(())
-				},
-			}
+		// 	// Read a value from storage.
+		// 	match Something::get() {
+		// 		// Return an error if the value has not been set.
+		// 		None => Err(Error::<T>::NoneValue)?,
+		// 		Some(old) => {
+		// 			// Increment the value read from storage; will error in the event of overflow.
+		// 			let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
+		// 			// Update the value in storage with the incremented result.
+		// 			Something::put(new);
+		// 			Ok(())
+		// 		},
+		// 	}
+			Ok(())
 		}
 	}
 }
