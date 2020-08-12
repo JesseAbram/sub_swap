@@ -21,6 +21,7 @@ fn it_adds_liquidity() {
 		assert_ok!(Uniswap::add_liquidity(Origin::signed(1), 0, 10, 5));
 		assert_eq!(Balances::free_balance(1), 0);
 		assert_eq!(Uniswap::balance(0,1), 80);
+		//TODO not working fix this test, unsigned int underflow and end up 0
 		assert_eq!(Uniswap::balance(1,1), 30);
 	});
 }

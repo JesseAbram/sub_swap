@@ -157,7 +157,7 @@ decl_module! {
 				//math
 				// get token as percent of tokens 
 				// underflows always leads to zero
-				let percent_of_tokens_added = (asset_amount + native_amount) / ((total_token) + (total_native_token));
+				let percent_of_tokens_added = asset_amount + native_amount;//(asset_amount + native_amount) / ((total_token) + (total_native_token));
 				
 
 				// get total current supply of LToken
@@ -167,8 +167,9 @@ decl_module! {
 				token_payout = percent_of_tokens_added * total_liq_token;
 				// mint it
 				//TODO check overflow?
-				<Balances<T>>::mutate((liquidity_token_id, &origin), |balance| *balance += token_payout);
-				<TotalSupply<T>>::mutate(liquidity_token_id, |supply| *supply += token_payout);
+				//TODO change to token payout when fix overflow  (instead of percent tokens added) 
+				<Balances<T>>::mutate((liquidity_token_id, &origin), |balance| *balance += percent_of_tokens_added);
+				<TotalSupply<T>>::mutate(liquidity_token_id, |supply| *supply += percent_of_tokens_added);
 
 			}
 			 
