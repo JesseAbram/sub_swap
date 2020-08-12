@@ -130,7 +130,7 @@ decl_module! {
 
 			
 			// deposit nativeToken
-			T::Currency::reserve(&origin, native_amount)?;
+			T::Currency::slash(&origin, native_amount);
 
 			// update nativetoken to token balance
 			<NativeTokenBalances<T>>::mutate(id, |amount| *amount += native_amount);
@@ -184,6 +184,7 @@ decl_module! {
 				#[compact] id: T::AssetId,
 				#[compact] asset_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance,
 			) -> dispatch::DispatchResult {
+				
 		//Take liquidity token return corresponding pool values
 		Ok(())
 	}
@@ -193,7 +194,16 @@ decl_module! {
 				#[compact] id: T::AssetId,
 				#[compact] asset_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance,
 			) -> dispatch::DispatchResult {
-		//Takes in Native token returns asset
+				let who = ensure_signed(origin)?;
+				let total_token = <TokenBalances<T>>::get(id);
+				let total_native_token = <NativeTokenBalances<T>>::get(id);
+				// underflow issue
+				let multiplier =  total_native_token / total_token;
+				let payable_value = asset_amount * multiplier;
+				T::Currency::deposit_into_existing(&who, payable_value)?;
+				<TokenBalances<T>>::mutate(id, |amount| *amount += asset_amount);
+				<NativeTokenBalances<T>>::mutate(id, |amount| *amount -= payable_value);
+
 		Ok(())
 	}
 
