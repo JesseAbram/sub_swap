@@ -49,7 +49,7 @@ decl_module! {
 		/// - 1 event.
 		/// # </weight>
 		#[weight = 0]
-		fn issue(origin, #[compact] total: T::Balance) {
+		fn issue(origin, #[compact] total: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance) {
 			let origin = ensure_signed(origin)?;
 
 			let id = Self::next_asset_id();
@@ -58,7 +58,7 @@ decl_module! {
 			<Balances<T>>::insert((id, &origin), total);
 			<TotalSupply<T>>::insert(id, total);
 
-			Self::deposit_event(RawEvent::Issued(id, origin, total));
+			// Self::deposit_event(RawEvent::Issued(id, origin, total));
 		}
 
 		/// Move some assets from one holder to another.
@@ -73,7 +73,7 @@ decl_module! {
 		fn transfer(origin,
 			#[compact] id: T::AssetId,
 			target: <T::Lookup as StaticLookup>::Source,
-			#[compact] amount: T::Balance
+			#[compact] amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance
 		) {
 			let origin = ensure_signed(origin)?;
 			let origin_account = (id, origin.clone());
@@ -82,7 +82,7 @@ decl_module! {
 			ensure!(!amount.is_zero(), Error::<T>::AmountZero);
 			ensure!(origin_balance >= amount, Error::<T>::BalanceLow);
 
-			Self::deposit_event(RawEvent::Transferred(id, origin, target.clone(), amount));
+			// Self::deposit_event(RawEvent::Transferred(id, origin, target.clone(), amount));
 			<Balances<T>>::insert(origin_account, origin_balance - amount);
 			<Balances<T>>::mutate((id, target), |balance| *balance += amount);
 		}
@@ -102,7 +102,7 @@ decl_module! {
 			ensure!(!balance.is_zero(), Error::<T>::BalanceZero);
 
 			<TotalSupply<T>>::mutate(id, |total_supply| *total_supply -= balance);
-			Self::deposit_event(RawEvent::Destroyed(id, origin, balance));
+			// Self::deposit_event(RawEvent::Destroyed(id, origin, balance));
 		}
 
 	
@@ -111,7 +111,7 @@ decl_module! {
 	fn add_liquidity(
 			origin,
 			#[compact] id: T::AssetId,
-			#[compact] asset_amount: T::Balance,
+			#[compact] asset_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance,
 			native_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance
 		) -> dispatch::DispatchResult {
 			// handles deposit asset token
@@ -141,7 +141,7 @@ decl_module! {
 			let mut token_payout;
 			// change if statment to see if mapping exists for token
 			if total_token == asset_amount {
-				token_payout = asset_amount;
+				token_payout = asset_amount + native_amount;
 				// create token
 				let liquidity_token_id = Self::next_asset_id();
 				<NextAssetId<T>>::mutate(|id| *id += One::one());
@@ -153,12 +153,14 @@ decl_module! {
 			} else {
 				//math
 				// get token as percent of tokens 
-				let token_percent = asset_amount / total_token;
+				let percent_of_tokens_added = (asset_amount + native_amount) / ((total_token - asset_amount) + (total_native_token - native_amount));
+				
+
 				// get total current supply of LToken
 				let liquidity_token_id = <LiquidityTokenTracker<T>>::get(id);
 				let total_liq_token = <TotalSupply<T>>::get(liquidity_token_id);
 				// token to issue 
-				token_payout = token_percent * total_liq_token;
+				token_payout = percent_of_tokens_added * total_liq_token;
 				// mint it
 				//TODO check overflow?
 				<Balances<T>>::mutate((id, &origin), |balance| *balance += token_payout);
@@ -174,7 +176,7 @@ decl_module! {
 	fn remove_liquidity(
 				origin,
 				#[compact] id: T::AssetId,
-				#[compact] asset_amount: T::Balance,
+				#[compact] asset_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance,
 			) -> dispatch::DispatchResult {
 		//Take liquidity token return corresponding pool values
 		Ok(())
@@ -183,7 +185,7 @@ decl_module! {
 	fn swap_token_to_asset(
 				origin,
 				#[compact] id: T::AssetId,
-				#[compact] asset_amount: T::Balance,
+				#[compact] asset_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance,
 			) -> dispatch::DispatchResult {
 		//Takes in Native token returns asset
 		Ok(())
@@ -193,7 +195,7 @@ decl_module! {
 	fn swap_asset_to_token(
 				origin,
 				#[compact] id: T::AssetId,
-				#[compact] asset_amount: T::Balance,
+				#[compact] asset_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance,
 			) -> dispatch::DispatchResult {
 		//Takes in asset returns native token
 		Ok(())
@@ -242,16 +244,16 @@ decl_error! {
 decl_storage! {
 	trait Store for Module<T: Trait> as Uniswap {
 		/// The number of units of assets held by any given account.
-		Balances: map hasher(blake2_128_concat) (T::AssetId, T::AccountId) => T::Balance;
+		Balances: map hasher(blake2_128_concat) (T::AssetId, T::AccountId) => <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 		/// The next asset identifier up for grabs.
 		NextAssetId get(fn next_asset_id): T::AssetId;
 		/// The total unit supply of an asset.
 		///
 		/// TWOX-NOTE: `AssetId` is trusted, so this is safe.
-		TotalSupply: map hasher(twox_64_concat) T::AssetId => T::Balance;
+		TotalSupply: map hasher(twox_64_concat) T::AssetId => <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
 		//TODO fix o they are generic types
-		pub TokenBalances: map hasher(blake2_128_concat) T::AssetId => T::Balance;
+		pub TokenBalances: map hasher(blake2_128_concat) T::AssetId => <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 		pub NativeTokenBalances: map hasher(blake2_128_concat) T::AssetId => <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 		pub LiquidityTokenTracker: map hasher(blake2_128_concat) T::AssetId => T::AssetId;
 
@@ -264,15 +266,15 @@ impl<T: Trait> Module<T> {
 	// Public immutables
 
 	/// Get the asset `id` balance of `who`.
-	pub fn balance(id: T::AssetId, who: T::AccountId) -> T::Balance {
+	pub fn balance(id: T::AssetId, who: T::AccountId) -> <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance {
 		<Balances<T>>::get((id, who))
 	}
 
 	/// Get the total supply of an asset `id`.
-	pub fn total_supply(id: T::AssetId) -> T::Balance {
+	pub fn total_supply(id: T::AssetId) -> <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance {
 		<TotalSupply<T>>::get(id)
 	}
-	pub fn token_balance(id: T::AssetId) -> T::Balance {
+	pub fn token_balance(id: T::AssetId) -> <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance {
 		<TokenBalances<T>>::get(id)
 	}
 
