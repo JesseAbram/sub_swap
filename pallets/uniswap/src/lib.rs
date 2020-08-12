@@ -136,16 +136,33 @@ decl_module! {
 
 			// return a token based on the % of the pool
 			// map the token generated
-			let totalToken = <TokenBalances<T>>::get(id);
-			let totalNativeToken = <NativeTokenBalances<T>>::get(id);
-			let mut tokenPayout;
+			let total_token = <TokenBalances<T>>::get(id);
+			let total_native_token = <NativeTokenBalances<T>>::get(id);
+			let mut token_payout;
 			// change if statment to see if mapping exists for token
-			if totalNativeToken == native_amount {
-				tokenPayout = native_amount;
-				// create new token map it and send it
+			if total_token == asset_amount {
+				token_payout = asset_amount;
+				// create token
+				let liquidity_token_id = Self::next_asset_id();
+				<NextAssetId<T>>::mutate(|id| *id += One::one());
+
+				<Balances<T>>::insert((id, &origin), token_payout);
+				<TotalSupply<T>>::insert(id, token_payout);
+				// map it
+				<LiquidityTokenTracker<T>>::insert(id, liquidity_token_id);
 			} else {
 				//math
-				// get token map it and send it 
+				// get token as percent of tokens 
+				let token_percent = asset_amount / total_token;
+				// get total current supply of LToken
+				let liquidity_token_id = <LiquidityTokenTracker<T>>::get(id);
+				let total_liq_token = <TotalSupply<T>>::get(liquidity_token_id);
+				// token to issue 
+				token_payout = token_percent * total_liq_token;
+				// mint it
+				//TODO check overflow?
+				<Balances<T>>::mutate((id, &origin), |balance| *balance += token_payout);
+				<TotalSupply<T>>::mutate(id, |supply| *supply += token_payout);
 			}
 			 
 
@@ -236,7 +253,7 @@ decl_storage! {
 		//TODO fix o they are generic types
 		pub TokenBalances: map hasher(blake2_128_concat) T::AssetId => T::Balance;
 		pub NativeTokenBalances: map hasher(blake2_128_concat) T::AssetId => <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
-		pub LiquidityTokenTracker get(fn liquidity_token_tracker): map hasher(blake2_128_concat) u128 => u128;
+		pub LiquidityTokenTracker: map hasher(blake2_128_concat) T::AssetId => T::AssetId;
 
 
 	}
@@ -261,5 +278,8 @@ impl<T: Trait> Module<T> {
 
 	pub fn native_token_balance(id: T::AssetId) -> <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance {
 		<NativeTokenBalances<T>>::get(id)
+	}
+	pub fn liquidity_token_tracker(id: T::AssetId) -> T::AssetId {
+		<LiquidityTokenTracker<T>>::get(id)
 	}
 }
