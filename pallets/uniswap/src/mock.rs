@@ -3,17 +3,18 @@ use crate::{Module, Trait};
 use sp_core::H256;
 use frame_support::{impl_outer_origin, impl_outer_dispatch, parameter_types, impl_outer_event, weights::Weight};
 use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header, Perbill,
-};
+	traits::{BlakeTwo256, IdentityLookup}, testing::Header, Perbill, ModuleId,
+	};
 
 impl_outer_origin! {
 	pub enum Origin for Test {}
 }
 
 // impl_outer_event! {
-// 	pub enum TestEvent for Test {
+// 	pub enum Event for Test {
 // 		frame_system<T>,
 // 		balances<T>,
+// 		Uniswap<T>
 // 	}
 // }
 
@@ -25,7 +26,8 @@ impl_outer_origin! {
 // }
 
 type System = frame_system::Module<Test>;
-type Balances = pallet_balances::Module<Test>;
+pub type Balances = pallet_balances::Module<Test>;
+
 
 // Configure a mock runtime to test the pallet.
 

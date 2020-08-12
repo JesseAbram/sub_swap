@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{Parameter, decl_module, decl_event, decl_storage, decl_error, ensure, dispatch};
+use frame_support::{Parameter, decl_module, decl_event, decl_storage, decl_error, ensure, dispatch, debug};
 use frame_support::{
 		weights::{Weight, GetDispatchInfo, Pays},
 		traits::{UnfilteredDispatchable, Currency, ReservableCurrency},
@@ -9,6 +9,7 @@ use frame_support::{
 use sp_runtime::traits::{Member, AtLeast32Bit, AtLeast32BitUnsigned, Zero, StaticLookup};
 use frame_system::ensure_signed;
 use sp_runtime::traits::One;
+
 
 #[cfg(test)]
 mod mock;
@@ -119,41 +120,44 @@ decl_module! {
 			let origin_account = (id, origin.clone());
 			let origin_balance = <Balances<T>>::get(&origin_account);
 			ensure!(origin_balance >= asset_amount, Error::<T>::BalanceLow);
-			<Balances<T>>::insert(origin_account, origin_balance - asset_amount);
+			<Balances<T>>::mutate((id, &origin), |balance| *balance -= asset_amount);
 
 			//TODO make one event for add liqudity
 			// Self::deposit_event(RawEvent::Deposited(id, &origin, asset_amount));
 
 			// update asset liquidity pool 
-			<TokenBalances<T>>::insert(id, asset_amount);
+			<TokenBalances<T>>::mutate(id, |amount| *amount += asset_amount);
 
 			
 			// deposit nativeToken
 			T::Currency::reserve(&origin, native_amount)?;
 
 			// update nativetoken to token balance
-			<NativeTokenBalances<T>>::insert(id, native_amount);
+			<NativeTokenBalances<T>>::mutate(id, |amount| *amount += native_amount);
 
 			// return a token based on the % of the pool
 			// map the token generated
 			let total_token = <TokenBalances<T>>::get(id);
 			let total_native_token = <NativeTokenBalances<T>>::get(id);
 			let mut token_payout;
+
 			// change if statment to see if mapping exists for token
-			if total_token == asset_amount {
+			if <Exists<T>>::get(id) == false {
 				token_payout = asset_amount + native_amount;
 				// create token
 				let liquidity_token_id = Self::next_asset_id();
 				<NextAssetId<T>>::mutate(|id| *id += One::one());
 
-				<Balances<T>>::insert((id, &origin), token_payout);
-				<TotalSupply<T>>::insert(id, token_payout);
+				<Balances<T>>::insert((liquidity_token_id, &origin), token_payout);
+				<TotalSupply<T>>::insert(liquidity_token_id, token_payout);
 				// map it
 				<LiquidityTokenTracker<T>>::insert(id, liquidity_token_id);
+				<Exists<T>>::insert(id, true);
 			} else {
 				//math
 				// get token as percent of tokens 
-				let percent_of_tokens_added = (asset_amount + native_amount) / ((total_token - asset_amount) + (total_native_token - native_amount));
+				// underflows always leads to zero
+				let percent_of_tokens_added = (asset_amount + native_amount) / ((total_token) + (total_native_token));
 				
 
 				// get total current supply of LToken
@@ -163,8 +167,9 @@ decl_module! {
 				token_payout = percent_of_tokens_added * total_liq_token;
 				// mint it
 				//TODO check overflow?
-				<Balances<T>>::mutate((id, &origin), |balance| *balance += token_payout);
-				<TotalSupply<T>>::mutate(id, |supply| *supply += token_payout);
+				<Balances<T>>::mutate((liquidity_token_id, &origin), |balance| *balance += token_payout);
+				<TotalSupply<T>>::mutate(liquidity_token_id, |supply| *supply += token_payout);
+
 			}
 			 
 
@@ -256,6 +261,7 @@ decl_storage! {
 		pub TokenBalances: map hasher(blake2_128_concat) T::AssetId => <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 		pub NativeTokenBalances: map hasher(blake2_128_concat) T::AssetId => <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 		pub LiquidityTokenTracker: map hasher(blake2_128_concat) T::AssetId => T::AssetId;
+		pub Exists: map hasher(blake2_128_concat) T::AssetId => bool;
 
 
 	}
@@ -283,5 +289,8 @@ impl<T: Trait> Module<T> {
 	}
 	pub fn liquidity_token_tracker(id: T::AssetId) -> T::AssetId {
 		<LiquidityTokenTracker<T>>::get(id)
+	}
+	pub fn exists(id: T::AssetId) -> bool {
+		<Exists<T>>::get(id)
 	}
 }

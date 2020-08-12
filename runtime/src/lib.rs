@@ -247,6 +247,7 @@ impl uniswap::Trait for Runtime {
 	type Event = Event;
 	type Balance = Balance;
 	type AssetId = AssetId;
+	type Currency = Balances;
 
 }
 

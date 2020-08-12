@@ -1,17 +1,27 @@
 use crate::{Error, mock::*};
 use frame_support::{assert_ok, assert_noop};
 
+fn genesis_config_works() {
+	new_test_ext().execute_with(|| {
+	});
+}
+
 #[test]
 fn it_adds_liquidity() {
 	new_test_ext().execute_with(|| {
-		// Dispatch a signed extrinsic.
+		assert_eq!(Balances::free_balance(1), 10);
 		assert_ok!(Uniswap::issue(Origin::signed(1), 100));
-		assert_eq!(Uniswap::balance(0, 1), 100);
+		assert_eq!(Uniswap::balance(0,1), 100);
 
-		assert_ok!(Uniswap::add_liquidity(Origin::signed(1), 0, 10, 0));
-		// Read pallet storage and assert an expected result.
-		assert_eq!(Uniswap::token_balance(0), 10);
+		assert_ok!(Uniswap::add_liquidity(Origin::signed(1), 0, 10, 5));
+		assert_eq!(Balances::free_balance(1), 5);
+		assert_eq!(Uniswap::balance(0,1), 90);
+		assert_eq!(Uniswap::balance(1,1), 15);
 
+		assert_ok!(Uniswap::add_liquidity(Origin::signed(1), 0, 10, 5));
+		assert_eq!(Balances::free_balance(1), 0);
+		assert_eq!(Uniswap::balance(0,1), 80);
+		assert_eq!(Uniswap::balance(1,1), 30);
 	});
 }
 
