@@ -123,6 +123,9 @@ decl_module! {
 			// deposit nativeToken
 			T::Currency::slash(&origin, native_amount);
 
+			let padding = 10000000.into();
+
+
 			<Balances<T>>::mutate((id, &origin), |balance| *balance -= asset_amount);
 
 			//TODO make one event for add liqudity
@@ -157,7 +160,8 @@ decl_module! {
 				//math
 				// get token as percent of tokens 
 				// underflows always leads to zero
-				let percent_of_tokens_added = asset_amount + native_amount;//(asset_amount + native_amount) / ((total_token) + (total_native_token));
+				// let percent_of_tokens_added = (asset_amount + native_amount) / (((total_token) + (total_native_token))
+				let percent_of_tokens_added = ((asset_amount + native_amount) * padding) / ((total_token - asset_amount) + (total_native_token - native_amount));
 				
 
 				// get total current supply of LToken
@@ -165,11 +169,12 @@ decl_module! {
 				let total_liq_token = <TotalSupply<T>>::get(liquidity_token_id);
 				// token to issue 
 				token_payout = percent_of_tokens_added * total_liq_token;
+				token_payout = token_payout / padding;
 				// mint it
 				//TODO check overflow?
 				//TODO change to token payout when fix overflow  (instead of percent tokens added) 
-				<Balances<T>>::mutate((liquidity_token_id, &origin), |balance| *balance += percent_of_tokens_added);
-				<TotalSupply<T>>::mutate(liquidity_token_id, |supply| *supply += percent_of_tokens_added);
+				<Balances<T>>::mutate((liquidity_token_id, &origin), |balance| *balance += token_payout);
+				<TotalSupply<T>>::mutate(liquidity_token_id, |supply| *supply += token_payout);
 
 			}
 			 
@@ -264,7 +269,6 @@ decl_storage! {
 		/// The next asset identifier up for grabs.
 		NextAssetId get(fn next_asset_id): T::AssetId;
 		/// The total unit supply of an asset.
-		///
 		/// TWOX-NOTE: `AssetId` is trusted, so this is safe.
 		TotalSupply: map hasher(twox_64_concat) T::AssetId => <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 

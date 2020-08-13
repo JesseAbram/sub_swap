@@ -3372,6 +3372,7 @@ dependencies = [
  "frame-system",
  "pallet-balances",
  "parity-scale-codec",
+ "sp-arithmetic",
  "sp-core",
  "sp-io",
  "sp-runtime",
