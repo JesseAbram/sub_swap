@@ -119,7 +119,10 @@ decl_module! {
 			let origin = ensure_signed(origin.clone())?;
 			let origin_account = (id, origin.clone());
 			let origin_balance = <Balances<T>>::get(&origin_account);
-			ensure!(origin_balance >= asset_amount, Error::<T>::BalanceLow);
+			ensure!(origin_balance >= asset_amount, Error::<T>::BalanceLow);	
+			// deposit nativeToken
+			T::Currency::slash(&origin, native_amount);
+
 			<Balances<T>>::mutate((id, &origin), |balance| *balance -= asset_amount);
 
 			//TODO make one event for add liqudity
@@ -128,10 +131,7 @@ decl_module! {
 			// update asset liquidity pool 
 			<TokenBalances<T>>::mutate(id, |amount| *amount += asset_amount);
 
-			
-			// deposit nativeToken
-			T::Currency::slash(&origin, native_amount);
-
+		
 			// update nativetoken to token balance
 			<NativeTokenBalances<T>>::mutate(id, |amount| *amount += native_amount);
 
