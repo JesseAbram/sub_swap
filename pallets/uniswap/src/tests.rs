@@ -26,6 +26,24 @@ fn it_adds_liquidity() {
 	});
 }
 
+#[test]
+fn it_swaps() {
+	new_test_ext().execute_with(|| {
+		//TODO good for now run more test with weirder numbers, make sure to check slippage
+		hydrate_pools();
+		assert_eq!(Balances::free_balance(1), 5);
+		assert_ok!(Uniswap::swap_token_to_asset(Origin::signed(1), 0, 5));
+		assert_eq!(Uniswap::balance(0,1), 85);
+		assert_eq!(Balances::free_balance(1), 10);
+
+	});
+}
+
+fn hydrate_pools() {
+	assert_ok!(Uniswap::issue(Origin::signed(1), 100));
+	assert_ok!(Uniswap::add_liquidity(Origin::signed(1), 0, 10, 5));
+}
+
 // #[test]
 // // fn correct_error_for_none_value() {
 // // 	new_test_ext().execute_with(|| {

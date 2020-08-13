@@ -202,10 +202,13 @@ decl_module! {
 				let who = ensure_signed(origin)?;
 				let total_token = <TokenBalances<T>>::get(id);
 				let total_native_token = <NativeTokenBalances<T>>::get(id);
+				let padding = 10000000.into();
 				// underflow issue
-				let multiplier =  total_native_token / total_token;
-				let payable_value = asset_amount * multiplier;
+				let multiplier =  (total_native_token * padding) / (total_token - asset_amount);
+				let mut payable_value = asset_amount * multiplier;
+				payable_value = payable_value / padding;
 				T::Currency::deposit_into_existing(&who, payable_value)?;
+				<Balances<T>>::mutate((id, &who), |balance| *balance -= asset_amount);
 				<TokenBalances<T>>::mutate(id, |amount| *amount += asset_amount);
 				<NativeTokenBalances<T>>::mutate(id, |amount| *amount -= payable_value);
 
