@@ -221,6 +221,20 @@ decl_module! {
 				#[compact] id: T::AssetId,
 				#[compact] asset_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance,
 			) -> dispatch::DispatchResult {
+
+				let who = ensure_signed(origin)?;
+				let total_token = <TokenBalances<T>>::get(id);
+				let total_native_token = <NativeTokenBalances<T>>::get(id);
+				let padding = 10000000.into();
+				// underflow issue
+				let multiplier =  (total_token * padding) / (total_native_token - asset_amount);
+				let mut payable_value = asset_amount * multiplier;
+				payable_value = payable_value / padding;
+				T::Currency::slash(&who, asset_amount);
+				<Balances<T>>::mutate((id, &who), |balance| *balance += payable_value);
+				<TokenBalances<T>>::mutate(id, |amount| *amount -= payable_value);
+				<NativeTokenBalances<T>>::mutate(id, |amount| *amount += asset_amount);
+
 		//Takes in asset returns native token
 		Ok(())
 	}
