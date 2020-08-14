@@ -34,7 +34,7 @@ fn it_swaps_token_to_asset() {
 		assert_eq!(Balances::free_balance(1), 5);
 		assert_ok!(Uniswap::swap_token_to_asset(Origin::signed(1), 0, 5));
 		assert_eq!(Uniswap::balance(0,1), 85);
-		assert_eq!(Balances::free_balance(1), 10);
+		assert_eq!(Balances::free_balance(1), 6);
 
 	});
 }
@@ -44,11 +44,10 @@ fn it_swaps_asset_to_token() {
 	new_test_ext().execute_with(|| {
 		//TODO good for now run more test with weirder numbers, make sure to check slippage
 		hydrate_pools();
-		// assert_eq!(Balances::free_balance(1), 5);
-		// assert_ok!(Uniswap::swap_token_to_asset(Origin::signed(1), 0, 5));
-		// assert_eq!(Uniswap::balance(0,1), 85);
-		// assert_eq!(Balances::free_balance(1), 10);
-
+		assert_eq!(Uniswap::balance(0,1), 90);
+		assert_ok!(Uniswap::swap_asset_to_token(Origin::signed(1), 0, 3));
+		assert_eq!(Uniswap::balance(0,1), 93);
+		assert_eq!(Balances::free_balance(1), 2);
 	});
 }
 

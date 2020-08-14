@@ -194,6 +194,7 @@ decl_module! {
 		Ok(())
 	}
 	#[weight = 0]
+	//TODO charge fee
 	fn swap_token_to_asset(
 				origin,
 				#[compact] id: T::AssetId,
@@ -204,7 +205,7 @@ decl_module! {
 				let total_native_token = <NativeTokenBalances<T>>::get(id);
 				let padding = 10000000.into();
 				// underflow issue
-				let multiplier =  (total_native_token * padding) / (total_token - asset_amount);
+				let multiplier =  (total_native_token * padding) / (total_token + asset_amount);
 				let mut payable_value = asset_amount * multiplier;
 				payable_value = payable_value / padding;
 				T::Currency::deposit_into_existing(&who, payable_value)?;
@@ -216,6 +217,7 @@ decl_module! {
 	}
 
 	#[weight = 0]
+	//TODO charge fee
 	fn swap_asset_to_token(
 				origin,
 				#[compact] id: T::AssetId,
@@ -227,7 +229,7 @@ decl_module! {
 				let total_native_token = <NativeTokenBalances<T>>::get(id);
 				let padding = 10000000.into();
 				// underflow issue
-				let multiplier =  (total_token * padding) / (total_native_token - asset_amount);
+				let multiplier =  (total_token * padding) / (total_native_token + asset_amount);
 				let mut payable_value = asset_amount * multiplier;
 				payable_value = payable_value / padding;
 				T::Currency::slash(&who, asset_amount);
