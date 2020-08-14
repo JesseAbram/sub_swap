@@ -27,6 +27,22 @@ fn it_adds_liquidity() {
 }
 
 #[test]
+fn it_removes_liquidity() {
+	new_test_ext().execute_with(|| {
+		//TODO good for now run more test with weirder numbers, make sure to check slippage
+		hydrate_pools();
+		assert_eq!(Uniswap::balance(0,1), 90);
+		assert_eq!(Balances::free_balance(1), 5);
+		assert_eq!(Uniswap::balance(1,1), 15);
+		assert_ok!(Uniswap::remove_liquidity(Origin::signed(1), 1, 8));
+		assert_eq!(Uniswap::balance(1,1), 7);
+		
+
+		
+	});
+}
+
+#[test]
 fn it_swaps_token_to_asset() {
 	new_test_ext().execute_with(|| {
 		//TODO good for now run more test with weirder numbers, make sure to check slippage
@@ -50,6 +66,7 @@ fn it_swaps_asset_to_token() {
 		assert_eq!(Balances::free_balance(1), 2);
 	});
 }
+
 
 fn hydrate_pools() {
 	assert_ok!(Uniswap::issue(Origin::signed(1), 100));

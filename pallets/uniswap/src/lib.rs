@@ -202,6 +202,7 @@ decl_module! {
 				let padding = 10000000.into();
 
 				let user_share = (user_liquidity_balance * padding) / total_liq_token;
+				ensure!(!user_share.is_zero(), Error::<T>::AmountZero);
 				let asset_token_id = <LiquidityTokenTracker<T>>::get(liquidity_token_id);
 
 				let total_token = <TokenBalances<T>>::get(asset_token_id);
@@ -213,6 +214,7 @@ decl_module! {
 				<TokenBalances<T>>::mutate(asset_token_id, |amount| *amount -= asset_payout);
 				<NativeTokenBalances<T>>::mutate(asset_token_id, |amount| *amount -= native_token_payout);
 
+				<Balances<T>>::mutate((liquidity_token_id, &origin), |balance| *balance -= asset_amount);
 				<Balances<T>>::mutate((asset_token_id, &origin), |balance| *balance += asset_payout);
 				T::Currency::deposit_into_existing(&origin, native_token_payout)?;
 
