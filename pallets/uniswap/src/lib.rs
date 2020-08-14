@@ -186,10 +186,38 @@ decl_module! {
 	#[weight = 0]
 	fn remove_liquidity(
 				origin,
-				#[compact] id: T::AssetId,
+				#[compact] liquidity_token_id: T::AssetId,
 				#[compact] asset_amount: <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance,
 			) -> dispatch::DispatchResult {
+
+				let origin = ensure_signed(origin.clone())?;
+
+				let total_liq_token = <TotalSupply<T>>::get(liquidity_token_id);
+
+				let user_liquidity_balance = Self::balance(liquidity_token_id, origin.clone());
+				ensure!(!asset_amount.is_zero(), Error::<T>::AmountZero);
+				ensure!(user_liquidity_balance >= asset_amount, Error::<T>::BalanceLow);
+
+
+				let padding = 10000000.into();
+
+				let user_share = (user_liquidity_balance * padding) / total_liq_token;
+				let asset_token_id = <LiquidityTokenTracker<T>>::get(liquidity_token_id);
+
+				let total_token = <TokenBalances<T>>::get(asset_token_id);
+				let total_native_token = <NativeTokenBalances<T>>::get(asset_token_id);
+
+				let asset_payout = user_share * total_token / padding;
+				let native_token_payout = user_share * total_native_token / padding;
+
+				<TokenBalances<T>>::mutate(asset_token_id, |amount| *amount -= asset_payout);
+				<NativeTokenBalances<T>>::mutate(asset_token_id, |amount| *amount -= native_token_payout);
+
+				<Balances<T>>::mutate((asset_token_id, &origin), |balance| *balance += asset_payout);
+				T::Currency::deposit_into_existing(&origin, native_token_payout)?;
+
 				
+
 		//Take liquidity token return corresponding pool values
 		Ok(())
 	}
